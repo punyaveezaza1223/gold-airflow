@@ -12,6 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+
   airflow:
     image: apache/airflow:2.10.4
     container_name: gold_airflow
@@ -19,21 +20,14 @@ services:
       - postgres
     ports:
       - "8082:8080"
-
     environment:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-
-      # ติดตั้ง package สำหรับ Machine Learning
       _PIP_ADDITIONAL_REQUIREMENTS: "pandas scikit-learn joblib"
-
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
-
-      # โฟลเดอร์สำหรับเก็บ Machine Learning Model
       - ./models:/opt/airflow/models
-
     command: >
       bash -c "
       airflow db migrate &&
@@ -46,6 +40,33 @@ services:
       --email admin@example.com || true;
       airflow standalone
       "
+
+
+  predictor:
+    image: python:3.11-slim
+    container_name: gold_predictor
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./scripts:/app/scripts
+      - ./models:/opt/airflow/models
+    working_dir: /app
+    command: >
+      bash -c "
+      pip install --no-cache-dir
+      pandas
+      scikit-learn
+      joblib
+      fastapi
+      uvicorn
+      psycopg2-binary &&
+      uvicorn scripts.predict_api:app
+      --host 0.0.0.0
+      --port 8000
+      "
+
 
 volumes:
   postgres_data:
